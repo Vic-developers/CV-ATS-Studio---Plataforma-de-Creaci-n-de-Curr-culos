@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
+import { maxOcrPages, openPdf, recognizePages } from "./ocr";
 import {
   blankResume,
   english,
@@ -340,31 +340,45 @@ export async function extract(
   )
     throw new HttpError(415, unsupported);
   let raw;
+  let pageCount: number | null = null;
   try {
     if (pdf) {
-      const parse = new PDFParse({
-        data: new Uint8Array(bytes),
-        isEvalSupported: false,
-        useSystemFonts: false,
-        stopAtErrors: true,
-      });
+      const parse = openPdf(bytes);
       try {
         const info = await parse.getInfo();
+        pageCount = info.total;
         if (info.total > 40)
           throw new HttpError(413, "El PDF supera el límite de 40 páginas.");
         const content = await parse.getText({
           pageJoiner: "",
           lineEnforce: true,
         });
+        const scanned = content.pages
+          .filter((page) => !/[\p{L}\p{N}]/u.test(page.text))
+          .map((page) => page.num);
+        const recognized = scanned.length
+          ? await recognizePages(parse, scanned)
+          : new Map<number, string>();
         raw = content.pages
-          .map((page) => page.text)
+          .map((page) => recognized.get(page.num) ?? page.text)
           .join("\n")
           .trim();
-        if (content.pages.some((page) => !page.text.trim()))
+        if (recognized.size)
           findings.push(
             warning(
-              "Hay páginas sin texto seleccionable.",
-              "Revisa si el documento tiene páginas escaneadas.",
+              "Se reconoció texto mediante OCR en " +
+                recognized.size +
+                " página(s).",
+              "Compara el resultado con el PDF original antes de confirmar.",
+            ),
+          );
+        if (scanned.length > recognized.size)
+          findings.push(
+            warning(
+              "Algunas páginas no aportaron texto legible.",
+              "El OCR analiza hasta " +
+                maxOcrPages +
+                " páginas sin texto por archivo. Revisa las páginas restantes.",
               "alta",
             ),
           );
@@ -414,7 +428,7 @@ export async function extract(
   if (!raw.trim())
     throw new HttpError(
       422,
-      "No se encontró texto seleccionable. Usa un archivo con texto o aplica OCR antes de importarlo.",
+      "No se encontró texto legible. Prueba con una copia de mejor resolución.",
     );
   if (raw.length > 100_000)
     throw new HttpError(
@@ -422,5 +436,5 @@ export async function extract(
       "El contenido del documento supera el límite de importación.",
     );
   const result = parseText(raw);
-  return { ...result, raw, mime, findings };
+  return { ...result, raw, mime, findings, pageCount };
 }

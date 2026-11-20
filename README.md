@@ -2,6 +2,11 @@
 
 Aplicación en español para crear e importar currículums, evaluar su preparación ATS, adaptarlos a vacantes y descargarlos en PDF con texto seleccionable o DOCX editable.
 
+- **Editor y ATS.** Lectura del texto extraído de PDF y Word, evidencias por requisito, comparación y restauración de versiones.
+- **Importación.** OCR local de PDF escaneados en español e inglés, con revisión junto a los campos editables.
+- **Postulaciones.** Banco de logros confirmados y seguimiento de vacantes con una copia de la revisión o del archivo enviado.
+- **Privacidad.** Descarga y eliminación de datos de la cuenta y gestión de los archivos de cada CV.
+
 ## Inicio local
 
 Requisitos de desarrollo: Node.js 22.13 o posterior, npm y Docker Compose o una instancia de PostgreSQL 16.

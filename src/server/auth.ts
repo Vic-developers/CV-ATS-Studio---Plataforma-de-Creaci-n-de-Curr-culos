@@ -18,6 +18,9 @@ const cookieOptions = () => ({
   httpOnly: true,
   sameSite: "lax" as const,
 });
+export async function clearSessionCookie() {
+  (await cookies()).set(sessionName(), "", { ...cookieOptions(), maxAge: 0 });
+}
 const email = z
   .string()
   .trim()
@@ -89,7 +92,7 @@ export async function auth(req: Request, action: string) {
     const jar = await cookies(),
       token = jar.get(sessionName())?.value;
     if (token) await db.session.deleteMany({ where: { token: digest(token) } });
-    jar.set(sessionName(), "", { ...cookieOptions(), maxAge: 0 });
+    await clearSessionCookie();
     return json({ ok: true });
   }
   const network =

@@ -36,15 +36,88 @@ const professional =
 const tools =
   /^(?:power bi|react|javascript|typescript|python|java|sql|excel|aws|azure|docker|kubernetes|figma|salesforce|sap|oracle|linux|git|wordpress|lms|html|css|node\.js|c\+\+|c#|microsoft office|google workspace)$/;
 const contains = (text: string, term: string) => {
-  const i = text.indexOf(term);
-  if (i < 0) return false;
-  if (
-    !/[\p{L}\p{N}]/u.test(text[i - 1] ?? "") &&
-    !/[\p{L}\p{N}]/u.test(text[i + term.length] ?? "")
-  )
-    return true;
-  return contains(text.slice(i + term.length), term);
+  for (
+    let i = text.indexOf(term);
+    i >= 0;
+    i = text.indexOf(term, i + term.length)
+  ) {
+    if (
+      !/[\p{L}\p{N}]/u.test(text[i - 1] ?? "") &&
+      !/[\p{L}\p{N}]/u.test(text[i + term.length] ?? "")
+    )
+      return true;
+  }
+  return false;
 };
+
+function requirementEvidence(
+  data: ResumeData,
+  groups: { required: string[]; preferred: string[] },
+  keywords: string[],
+) {
+  const visible = documentBlocks(data)
+    .filter((block) => block.kind !== "heading")
+    .map((block) => block.text);
+  const contextual: { section: string; quote: string }[] = [];
+  if (!data.style.hidden.includes("experience"))
+    for (const e of data.experience)
+      for (const quote of lines(
+        [e.duties, e.achievements, e.metrics].join("\n"),
+      ))
+        contextual.push({
+          section:
+            [e.role, e.company].filter(Boolean).join(" · ") ||
+            "Experiencia laboral",
+          quote,
+        });
+  for (const section of [
+    "projects",
+    "research",
+    "teaching",
+    "volunteer",
+  ] as const) {
+    if (data.style.hidden.includes(section)) continue;
+    for (const e of data.extras[section])
+      for (const quote of lines(e.description))
+        contextual.push({ section: e.title || section, quote });
+  }
+  return (["required", "preferred"] as const).flatMap((type) =>
+    groups[type].slice(0, 30).map((requirement) => {
+      const text = norm(requirement);
+      const relevant = [
+        ...new Set([
+          ...Array.from(text.matchAll(terms), (m) => m[0]),
+          ...keywords,
+        ]),
+      ]
+        .filter((term) => contains(text, term))
+        .slice(0, 12);
+      return {
+        type,
+        requirement,
+        matches: relevant.map((term) => {
+          const evidence = contextual.find(
+            (item) =>
+              contains(norm(item.quote), term) &&
+              !/\b(?:sin|no|never|without)\b/i.test(item.quote) &&
+              norm(item.quote).trim() !== term,
+          );
+          const mention = visible.find((quote) => contains(norm(quote), term));
+          return {
+            term,
+            status: evidence
+              ? ("context" as const)
+              : mention
+                ? ("mention" as const)
+                : ("missing" as const),
+            quote: evidence?.quote ?? mention ?? "",
+            section: evidence?.section ?? "",
+          };
+        }),
+      };
+    }),
+  );
+}
 
 export function compareJob(data: ResumeData, job: string) {
   const rows = lines(job);
@@ -118,6 +191,7 @@ export function compareJob(data: ResumeData, job: string) {
   return {
     title,
     ...groups,
+    requirementEvidence: requirementEvidence(data, groups, keywords),
     keywords,
     found,
     missing: keywords.filter((word) => !found.includes(word)),

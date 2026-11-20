@@ -15,6 +15,8 @@ model User {
   resets PasswordReset[]
   resumes Resume[]
   imports ImportFile[]
+  achievements Achievement[]
+  applications Application[]
 }
 model Session {
   token String @id
@@ -57,6 +59,8 @@ model Resume {
   recommendations AIRecommendation[]
   exports ExportHistory[]
   source ImportFile?
+  versions ResumeVersion[]
+  applications Application[]
   @@index([userId, updatedAt])
   @@index([parentId])
 }
@@ -105,7 +109,59 @@ model ExportHistory {
   name String
   format String
   mode String
+  revision Int?
+  snapshot Json?
   bytes Bytes
   createdAt DateTime @default(now())
   @@index([resumeId, createdAt])
+}
+
+model ResumeVersion {
+  id String @id @default(cuid())
+  resumeId String
+  resume Resume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  label String
+  title String
+  revision Int
+  data Json
+  job String @default("")
+  createdAt DateTime @default(now())
+  @@index([resumeId, createdAt])
+}
+
+model Achievement {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title String
+  context String @default("")
+  description String
+  metrics String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([userId, updatedAt])
+}
+
+model Application {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resumeId String?
+  resume Resume? @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+  company String
+  role String
+  sentOn String
+  status String
+  url String @default("")
+  notes String @default("")
+  resumeTitle String
+  resumeRevision Int
+  snapshot Json
+  artifactName String?
+  artifactFormat String?
+  artifact Bytes?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([userId, sentOn])
+  @@index([resumeId])
 }

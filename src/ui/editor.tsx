@@ -7,11 +7,15 @@ import {
   ClipboardList,
   Download,
   FileText,
+  FileCheck2,
+  FolderOpen,
+  History,
   Palette,
   ScanLine,
   Sparkles,
 } from "lucide-react";
 import { analyze, type compareJob } from "@/domain/ats";
+import { addAchievement } from "@/domain/extensions";
 import {
   blankResume,
   extraSections,
@@ -33,8 +37,23 @@ import { Design } from "./design";
 import { Preview } from "./preview";
 import { AIReview, JobReview, Reports } from "./reviews";
 import { Modal, Notice } from "./primitives";
+import {
+  FilesPanel,
+  OriginalReview,
+  ReadingPanel,
+  VersionsPanel,
+} from "./editor-tools";
+import { AchievementPicker } from "./workspace-records";
 
-type Tab = "content" | "design" | "analysis" | "job" | "ai";
+type Tab =
+  | "content"
+  | "design"
+  | "analysis"
+  | "job"
+  | "ai"
+  | "reading"
+  | "versions"
+  | "files";
 type Draft = { data: ResumeData; title: string };
 const tabs = [
   { id: "content", label: "Contenido", icon: FileText },
@@ -42,6 +61,9 @@ const tabs = [
   { id: "analysis", label: "Análisis ATS", icon: ScanLine },
   { id: "job", label: "Oferta laboral", icon: ClipboardList },
   { id: "ai", label: "Asistente IA", icon: Sparkles },
+  { id: "reading", label: "Lectura ATS", icon: FileCheck2 },
+  { id: "versions", label: "Versiones", icon: History },
+  { id: "files", label: "Archivos", icon: FolderOpen },
 ] as const;
 const sectionSteps: Record<string, number> = {
   profile: 1,
@@ -95,6 +117,9 @@ export function Editor({
   const [exportError, setExportError] = useState("");
   const [printUrl, setPrintUrl] = useState("");
   const [exitDialog, setExitDialog] = useState(false);
+  const [picker, setPicker] = useState(false);
+  const [source, setSource] = useState(initial?.source ?? null);
+  const [fileRefresh, setFileRefresh] = useState(0);
   const path = "/resumes/" + (initial?.id ?? "");
   const draft = useRef<Draft>({ data, title });
   const savedDraft = useRef(draft.current);
@@ -215,6 +240,29 @@ export function Editor({
     setTab(next);
     setSuccess("");
   };
+
+  async function restoreVersion(versionId: string) {
+    const current = await flush();
+    const request = queue.current.then(async () => {
+      const restored = await api<SavedResume>(
+        path + "/versions/" + versionId,
+        payload({ revision: current.revision }),
+      );
+      const snapshot = { data: restored.data, title: restored.title };
+      draft.current = snapshot;
+      savedDraft.current = snapshot;
+      saved.current = restored;
+      setData(snapshot.data);
+      setTitle(snapshot.title);
+      setJob(restored.job?.text ?? "");
+      setRevision(restored.revision);
+      setComparison(null);
+      setSaveState("Guardado");
+      changed.current(restored);
+    });
+    queue.current = request.catch(() => undefined);
+    await request;
+  }
   const showAI = (task: string) => {
     setAiTask(task);
     choose("ai");
@@ -362,10 +410,6 @@ export function Editor({
                     <pre className="raw">{staged.unclassified.join("\n")}</pre>
                   </details>
                 )}
-                <details>
-                  <summary>Ver todo el texto extraído</summary>
-                  <pre className="raw">{staged.raw}</pre>
-                </details>
                 <label className="check">
                   <input
                     type="checkbox"
@@ -412,7 +456,47 @@ export function Editor({
                 }
               />
             )}
+            {tab === "content" && step === 2 && initial && (
+              <button
+                className="button"
+                disabled={!data.experience.length}
+                onClick={() => setPicker(true)}
+              >
+                Usar un logro del banco
+              </button>
+            )}
             {tab === "design" && <Design data={data} change={update} />}
+            {tab === "reading" && (
+              <ReadingPanel
+                path={path}
+                flush={flush}
+                mode={data.style.mode}
+                revision={revision}
+                fileRefresh={fileRefresh}
+              />
+            )}
+            {tab === "versions" && (
+              <VersionsPanel
+                path={path}
+                flush={flush}
+                restore={restoreVersion}
+                current={{ data, title, job: saved.current?.job?.text ?? "" }}
+              />
+            )}
+            {tab === "files" && (
+              <FilesPanel
+                path={path}
+                source={source}
+                fileRefresh={fileRefresh}
+                onRemoveSource={() => {
+                  setSource(null);
+                  if (saved.current) {
+                    saved.current = { ...saved.current, source: null };
+                    changed.current(saved.current);
+                  }
+                }}
+              />
+            )}
             {tab === "analysis" && (
               <Reports
                 history={history}
@@ -529,12 +613,28 @@ export function Editor({
             )}
           </div>
         </section>
-        <Preview
-          data={data}
-          canPrint={!!initial && !!data.personal.name && !busy}
-          openPrint={inspectPrint}
-        />
+        {staged ? (
+          <OriginalReview source={staged} />
+        ) : (
+          <Preview
+            data={data}
+            canPrint={!!initial && !!data.personal.name && !busy}
+            openPrint={inspectPrint}
+          />
+        )}
       </main>
+      {picker && (
+        <AchievementPicker
+          data={data}
+          close={() => setPicker(false)}
+          change={(index, entry) => {
+            const next = addAchievement(draft.current.data, index, entry);
+            if (!next) return false;
+            update(next);
+            return true;
+          }}
+        />
+      )}
       {exitDialog && (
         <Modal
           title={staged ? "Cancelar importación" : "Salir sin guardar"}
@@ -595,6 +695,7 @@ export function Editor({
                   }),
                 );
                 saveDownload(response, await response.blob());
+                setFileRefresh((value) => value + 1);
                 setExporting(false);
               } catch (e) {
                 setExportError(message(e));

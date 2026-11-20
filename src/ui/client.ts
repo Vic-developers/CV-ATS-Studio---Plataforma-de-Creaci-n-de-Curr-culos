@@ -12,7 +12,7 @@ export type SavedResume = {
   createdAt: string;
   parentId: string | null;
   job: { text: string } | null;
-  source: { name: string; diagnostics: Diagnostic[] } | null;
+  source: { id: string; name: string; diagnostics: Diagnostic[] } | null;
 };
 export type PastAnalysis = {
   id: string;
@@ -25,6 +25,7 @@ export type ImportResult = {
   data: ResumeData;
   source: { id: string; name: string };
   raw: string;
+  pageCount: number | null;
   unclassified: string[];
   findings: Diagnostic[];
 };

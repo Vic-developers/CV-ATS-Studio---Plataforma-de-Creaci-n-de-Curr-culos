@@ -6,6 +6,10 @@ import { db } from "./db";
 import { body, HttpError, json, limitedBody } from "./http";
 import { rate } from "./auth";
 import { extract, maxImportSize } from "./import";
+import {
+  resumeExtension,
+  resumeSelection as selection,
+} from "./extended-resumes";
 import { aiTasks, grammarReview, recommend } from "./ai";
 import { fileName, makeDocx, makePdf, validateExport } from "./documents";
 
@@ -14,10 +18,6 @@ const jobText = z.string().trim().max(25_000);
 const revisionField = z.number().int().nonnegative();
 const jsonDb = (value: unknown) =>
   JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
-const selection = {
-  job: { select: { text: true } },
-  source: { select: { name: true, diagnostics: true } },
-} as const;
 const state = (score: number) => (score >= 75 ? "optimized" : "review");
 const idSchema = z.string().regex(/^[a-z0-9]{10,40}$/i);
 function download(
@@ -83,8 +83,9 @@ export async function resumes(
   userId: string,
   id?: string,
   action?: string,
+  subId?: string,
 ) {
-  if (!id) {
+  if (!id && !subId) {
     if (req.method === "GET")
       return json(
         await db.resume.findMany({
@@ -132,13 +133,16 @@ export async function resumes(
     });
     return json(saved, 201);
   }
-  if (!idSchema.safeParse(id).success)
+  if (!id || !idSchema.safeParse(id).success)
     throw new HttpError(404, "Currículum no encontrado.");
   const resume = await db.resume.findFirst({
     where: { id, userId },
     include: selection,
   });
   if (!resume) throw new HttpError(404, "Currículum no encontrado.");
+  const extended = await resumeExtension(req, resume, action, subId);
+  if (extended) return extended;
+  if (subId) throw new HttpError(404, "Ruta no encontrada.");
   if (!action) {
     if (req.method === "GET") return json(resume);
     if (req.method === "DELETE") {
@@ -330,6 +334,12 @@ export async function resumes(
         bytes: new Uint8Array(output),
         name,
         format: input.format,
+        revision: resume.revision,
+        snapshot: {
+          title: resume.title,
+          data: draft,
+          job: resume.job?.text ?? "",
+        },
         mode: input.mode,
       },
     });
@@ -339,20 +349,5 @@ export async function resumes(
         : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     return download(output, name, mime);
   }
-  if (action === "exports" && req.method === "GET")
-    return json(
-      await db.exportHistory.findMany({
-        where: { resumeId: id },
-        select: {
-          id: true,
-          name: true,
-          format: true,
-          mode: true,
-          createdAt: true,
-        },
-        orderBy: { createdAt: "desc" },
-        take: 30,
-      }),
-    );
   throw new HttpError(405, "Operación no disponible.");
 }

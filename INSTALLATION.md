@@ -30,6 +30,8 @@ npm start
 
 Ejecuta `db:deploy` una vez por versión antes de dirigir tráfico a los procesos nuevos. Habilita copias de seguridad y el mantenimiento diario descrito en [base de datos](DATABASE.md). Verifica con una cuenta de prueba el flujo de recuperación y una solicitud real a cada servicio externo que habilites. Usa un servidor de Node.js con acceso a PostgreSQL y a las fuentes incluidas en assets/fonts.
 
+El OCR usa Tesseract.js y los modelos de español e inglés que instala `npm ci`. Conserva esos paquetes junto al servidor desplegado. No requiere claves ni descargas al importar. En cada plan de alojamiento, prueba un PDF escaneado representativo y comprueba el tiempo y la memoria disponibles. La importación admite hasta 40 páginas PDF, cuatro de ellas procesadas por OCR como máximo.
+
 En Windows, la configuración inicial de Docker Compose evita el puerto 5432 del host. Si 55432 está reservado también, ajusta `CV_DB_PORT` y el puerto de `DATABASE_URL` en la misma dirección.
 
 ## Despliegue gratuito con Render y Neon

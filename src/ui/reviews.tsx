@@ -263,6 +263,45 @@ export function JobReview({
               <Tags values={values} />
             </div>
           ))}
+          {!!result.requirementEvidence?.length && (
+            <section className="stack">
+              <h3>Evidencias por requisito</h3>
+              <p className="muted">
+                Las citas muestran dónde aparece cada término. Comprueba que la
+                frase respalde el requisito completo.
+              </p>
+              {result.requirementEvidence.map((item, index) => (
+                <details className="record" key={index}>
+                  <summary>
+                    {item.requirement} ·{" "}
+                    {item.type === "required" ? "Obligatorio" : "Deseable"}
+                  </summary>
+                  {item.matches.length ? (
+                    <ul>
+                      {item.matches.map((match) => (
+                        <li key={match.term}>
+                          <strong>{match.term}</strong> ·{" "}
+                          {match.status === "context"
+                            ? "Evidencia contextual"
+                            : match.status === "mention"
+                              ? "Mención"
+                              : "Sin coincidencia"}
+                          {match.quote && (
+                            <blockquote className="evidence-quote">
+                              {match.quote}
+                              {match.section && <small>{match.section}</small>}
+                            </blockquote>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="muted">Requiere revisión manual.</p>
+                  )}
+                </details>
+              ))}
+            </section>
+          )}
           <Notice kind="info">{result.recommendation}</Notice>
           <button className="button" onClick={adapt}>
             <Sparkles size={16} /> Adaptar perfil y experiencia con IA

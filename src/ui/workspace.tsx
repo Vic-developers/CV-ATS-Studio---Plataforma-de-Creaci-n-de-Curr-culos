@@ -2,6 +2,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
   Activity,
+  BriefcaseBusiness,
   ArrowUpRight,
   ChevronDown,
   ClipboardList,
@@ -20,6 +21,8 @@ import {
   Download,
   Search,
   PanelLeft,
+  Shield,
+  Star,
 } from "lucide-react";
 import {
   api,
@@ -33,9 +36,20 @@ import {
 } from "./client";
 import { Brand, Empty, Modal, Notice } from "./primitives";
 import { Editor } from "./editor";
+import {
+  AccountPanel,
+  AchievementsPanel,
+  ApplicationsPanel,
+} from "./workspace-records";
 import { templates } from "@/domain/resume";
 
-type Panel = "home" | "resumes" | "reports";
+type Panel =
+  | "home"
+  | "resumes"
+  | "reports"
+  | "achievements"
+  | "applications"
+  | "account";
 type Dialog =
   | { kind: "create" | "import" }
   | {
@@ -46,7 +60,20 @@ const menu = [
   { id: "home", label: "Panel principal", icon: LayoutGrid },
   { id: "resumes", label: "Mis currículums", icon: FileText },
   { id: "reports", label: "Análisis ATS", icon: ScanLine },
+  { id: "achievements", label: "Banco de logros", icon: Star },
+  { id: "applications", label: "Postulaciones", icon: BriefcaseBusiness },
+  { id: "account", label: "Datos de mi cuenta", icon: Shield },
 ] as const;
+const panelDescription: Record<Panel, string> = {
+  home: "Crea, organiza y mejora tus currículums profesionales.",
+  resumes: "Gestiona tu CV base y sus versiones para cada vacante.",
+  reports: "Consulta la preparación ATS y el historial de cada currículum.",
+  achievements:
+    "Reúne contribuciones y resultados que puedas reutilizar en tus CV.",
+  applications:
+    "Registra las vacantes a las que postulaste y qué documento enviaste.",
+  account: "Gestiona la copia y la eliminación de tus datos.",
+};
 const labels = {
   draft: "Borrador",
   optimized: "Optimizado",
@@ -183,6 +210,8 @@ export function Workspace({ email }: { email: string }) {
     );
 
   const title = menu.find((item) => item.id === panel)!.label;
+  const resumeList =
+    panel === "home" || panel === "resumes" || panel === "reports";
   const visible = items.filter((item) =>
     item.title
       .toLocaleLowerCase("es")
@@ -289,15 +318,9 @@ export function Workspace({ email }: { email: string }) {
           <div className="page-heading">
             <div>
               <h1>{title}</h1>
-              <p className="muted">
-                {panel === "home"
-                  ? "Crea, organiza y mejora tus currículums profesionales."
-                  : panel === "resumes"
-                    ? "Gestiona tu CV base y sus versiones para cada vacante."
-                    : "Consulta la preparación ATS y el historial de cada currículum."}
-              </p>
+              <p className="muted">{panelDescription[panel]}</p>
             </div>
-            {panel !== "reports" && (
+            {(panel === "home" || panel === "resumes") && (
               <div className="actions">
                 <button
                   className="button"
@@ -315,6 +338,9 @@ export function Workspace({ email }: { email: string }) {
             )}
           </div>
           {error && <Notice>{error}</Notice>}
+          {panel === "achievements" && <AchievementsPanel />}
+          {panel === "applications" && <ApplicationsPanel resumes={items} />}
+          {panel === "account" && <AccountPanel email={email} />}
           {panel === "home" && (
             <div className="stat-grid">
               {cards.map(({ title, value, detail, icon: Icon, style }) => (
@@ -334,152 +360,157 @@ export function Workspace({ email }: { email: string }) {
               ))}
             </div>
           )}
-          <section className="surface">
-            <div className="surface-heading">
-              <div>
-                <h2>
-                  {panel === "home"
-                    ? "Currículums recientes"
-                    : panel === "reports"
-                      ? "Historial por currículum"
-                      : "Todos los currículums"}
-                </h2>
-                {panel === "home" && (
-                  <p className="muted">
-                    Abre un documento para continuar donde lo dejaste.
-                  </p>
-                )}
-              </div>
-              {panel === "home" ? (
-                <button
-                  className="button subtle"
-                  onClick={() => navigate("resumes")}
-                >
-                  Ver todos <ArrowUpRight size={15} />
-                </button>
-              ) : (
-                <label className="search">
-                  <Search size={16} />
-                  <input
-                    aria-label="Buscar currículums"
-                    placeholder="Buscar currículums"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                  />
-                </label>
-              )}
-            </div>
-            {loading ? (
-              <p className="table-state" role="status">
-                Cargando currículums…
-              </p>
-            ) : !visible.length ? (
-              <Empty
-                title={
-                  query
-                    ? "Sin resultados"
-                    : panel === "reports"
-                      ? "Aún no hay currículums para analizar"
-                      : "Aún no tienes currículums"
-                }
-              >
-                <p className="muted">
-                  {query
-                    ? "Prueba con otro nombre."
-                    : "Crea un currículum o importa uno que ya tengas."}
-                </p>
-                {!query && (
+          {resumeList && (
+            <section className="surface">
+              <div className="surface-heading">
+                <div>
+                  <h2>
+                    {panel === "home"
+                      ? "Currículums recientes"
+                      : panel === "reports"
+                        ? "Historial por currículum"
+                        : "Todos los currículums"}
+                  </h2>
+                  {panel === "home" && (
+                    <p className="muted">
+                      Abre un documento para continuar donde lo dejaste.
+                    </p>
+                  )}
+                </div>
+                {panel === "home" ? (
                   <button
-                    className="button"
-                    onClick={() => modal({ kind: "create" })}
+                    className="button subtle"
+                    onClick={() => navigate("resumes")}
                   >
-                    <FilePlus2 size={16} /> Crear currículum
+                    Ver todos <ArrowUpRight size={15} />
                   </button>
+                ) : (
+                  <label className="search">
+                    <Search size={16} />
+                    <input
+                      aria-label="Buscar currículums"
+                      placeholder="Buscar currículums"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                    />
+                  </label>
                 )}
-              </Empty>
-            ) : (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Currículum</th>
-                      <th>Estado</th>
-                      <th>ATS</th>
-                      <th className="modified-column">Última edición</th>
-                      <th aria-label="Acciones" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(panel === "home" ? visible.slice(0, 5) : visible).map(
-                      (item) => (
-                        <tr key={item.id}>
-                          <td>
-                            <button
-                              className="resume-link"
-                              onClick={() => open(item, panel === "reports")}
-                            >
-                              <span className="doc-icon">
-                                <FileText size={18} />
-                              </span>
-                              <span>
-                                <b>{item.title}</b>
-                                <small>
-                                  {
-                                    templates.find(
-                                      (t) => t.id === item.data.style.template,
-                                    )?.name
-                                  }
-                                  {item.parentId ? " · Versión" : ""}
-                                </small>
-                                <small className="mobile-date">
-                                  {displayDate(item.updatedAt)}
-                                </small>
-                              </span>
-                            </button>
-                          </td>
-                          <td>
-                            <span className={"pill " + item.status}>
-                              {labels[item.status as keyof typeof labels] ??
-                                "Borrador"}
-                            </span>
-                          </td>
-                          <td>
-                            {item.score === null ? (
-                              "—"
-                            ) : (
-                              <b>{item.score}/100</b>
-                            )}
-                          </td>
-                          <td className="modified-column">
-                            {displayDate(item.updatedAt)}
-                          </td>
-                          <td>
-                            {panel === "reports" ? (
-                              <button
-                                className="icon-button"
-                                aria-label={"Abrir análisis de " + item.title}
-                                onClick={() => open(item, true)}
-                              >
-                                <ClipboardList size={17} />
-                              </button>
-                            ) : (
-                              <button
-                                className="icon-button"
-                                aria-label={"Acciones de " + item.title}
-                                onClick={() => modal({ kind: "actions", item })}
-                              >
-                                <ChevronDown size={18} />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ),
-                    )}
-                  </tbody>
-                </table>
               </div>
-            )}
-          </section>
+              {loading ? (
+                <p className="table-state" role="status">
+                  Cargando currículums…
+                </p>
+              ) : !visible.length ? (
+                <Empty
+                  title={
+                    query
+                      ? "Sin resultados"
+                      : panel === "reports"
+                        ? "Aún no hay currículums para analizar"
+                        : "Aún no tienes currículums"
+                  }
+                >
+                  <p className="muted">
+                    {query
+                      ? "Prueba con otro nombre."
+                      : "Crea un currículum o importa uno que ya tengas."}
+                  </p>
+                  {!query && (
+                    <button
+                      className="button"
+                      onClick={() => modal({ kind: "create" })}
+                    >
+                      <FilePlus2 size={16} /> Crear currículum
+                    </button>
+                  )}
+                </Empty>
+              ) : (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Currículum</th>
+                        <th>Estado</th>
+                        <th>ATS</th>
+                        <th className="modified-column">Última edición</th>
+                        <th aria-label="Acciones" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(panel === "home" ? visible.slice(0, 5) : visible).map(
+                        (item) => (
+                          <tr key={item.id}>
+                            <td>
+                              <button
+                                className="resume-link"
+                                onClick={() => open(item, panel === "reports")}
+                              >
+                                <span className="doc-icon">
+                                  <FileText size={18} />
+                                </span>
+                                <span>
+                                  <b>{item.title}</b>
+                                  <small>
+                                    {
+                                      templates.find(
+                                        (t) =>
+                                          t.id === item.data.style.template,
+                                      )?.name
+                                    }
+                                    {item.parentId ? " · Versión" : ""}
+                                  </small>
+                                  <small className="mobile-date">
+                                    {displayDate(item.updatedAt)}
+                                  </small>
+                                </span>
+                              </button>
+                            </td>
+                            <td>
+                              <span className={"pill " + item.status}>
+                                {labels[item.status as keyof typeof labels] ??
+                                  "Borrador"}
+                              </span>
+                            </td>
+                            <td>
+                              {item.score === null ? (
+                                "—"
+                              ) : (
+                                <b>{item.score}/100</b>
+                              )}
+                            </td>
+                            <td className="modified-column">
+                              {displayDate(item.updatedAt)}
+                            </td>
+                            <td>
+                              {panel === "reports" ? (
+                                <button
+                                  className="icon-button"
+                                  aria-label={"Abrir análisis de " + item.title}
+                                  onClick={() => open(item, true)}
+                                >
+                                  <ClipboardList size={17} />
+                                </button>
+                              ) : (
+                                <button
+                                  className="icon-button"
+                                  aria-label={"Acciones de " + item.title}
+                                  onClick={() =>
+                                    modal({ kind: "actions", item })
+                                  }
+                                >
+                                  <ChevronDown size={18} />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ),
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
           {panel === "home" && (
             <div className="info-banner">
               <span className="stat-icon violet">
