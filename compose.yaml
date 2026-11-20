@@ -1,0 +1,18 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: cvstudio
+      POSTGRES_PASSWORD: local_dev_only
+      POSTGRES_DB: cvstudio
+    ports:
+      - "127.0.0.1:${CV_DB_PORT:-55432}:5432"
+    volumes:
+      - studio-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cvstudio"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  studio-db:

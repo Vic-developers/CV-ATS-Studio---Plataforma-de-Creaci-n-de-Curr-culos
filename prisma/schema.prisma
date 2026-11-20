@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client"
+  output = "../src/server/generated"
+}
+datasource db {
+  provider = "postgresql"
+
+}
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  password String
+  createdAt DateTime @default(now())
+  sessions Session[]
+  resets PasswordReset[]
+  resumes Resume[]
+  imports ImportFile[]
+}
+model Session {
+  token String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires DateTime
+  @@index([userId])
+  @@index([expires])
+}
+model PasswordReset {
+  token String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires DateTime
+  @@index([userId])
+  @@index([expires])
+}
+model RateLimit {
+  id String @id
+  count Int @default(1)
+  expires DateTime
+  @@index([expires])
+}
+model Resume {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title String
+  data Json
+  revision Int @default(0)
+  status String @default("draft")
+  score Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  parentId String?
+  parent Resume? @relation("Variants", fields: [parentId], references: [id], onDelete: SetNull)
+  variants Resume[] @relation("Variants")
+  job JobDescription?
+  analyses ATSAnalysis[]
+  recommendations AIRecommendation[]
+  exports ExportHistory[]
+  source ImportFile?
+  @@index([userId, updatedAt])
+  @@index([parentId])
+}
+model ImportFile {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resumeId String? @unique
+  resume Resume? @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  name String
+  mime String
+  bytes Bytes
+  diagnostics Json
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+}
+model JobDescription {
+  resumeId String @id
+  resume Resume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  text String
+  updatedAt DateTime @updatedAt
+}
+model ATSAnalysis {
+  id String @id @default(cuid())
+  resumeId String
+  resume Resume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  revision Int
+  score Int
+  report Json
+  createdAt DateTime @default(now())
+  @@index([resumeId, createdAt])
+}
+model AIRecommendation {
+  id String @id @default(cuid())
+  resumeId String
+  resume Resume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  task String
+  result Json
+  createdAt DateTime @default(now())
+  @@index([resumeId, createdAt])
+}
+model ExportHistory {
+  id String @id @default(cuid())
+  resumeId String
+  resume Resume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  name String
+  format String
+  mode String
+  bytes Bytes
+  createdAt DateTime @default(now())
+  @@index([resumeId, createdAt])
+}
